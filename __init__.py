@@ -51,19 +51,29 @@ def getBaudRate():
     arr = [9600,19200,38400,57600,115200]
     return arr
 
+# select adding system temperature
+def getYesNo():
+    arr = ['yes','no']
+    return arr
+
 class myThread (threading.Thread):
 
     value = 0
     baud = 9600
 
-    def __init__(self, sensor_name, sensor_baud):
+    def __init__(self, sensor_id, sensor_name, sensor_baud, sensor_actv, sensor_strt):
         threading.Thread.__init__(self)
+        self.sensor_id = sensor_id
         self.sensor_name = sensor_name
         self.sensor_baud = sensor_baud
+        self.sensor_actv = sensor_actv
+        self.sensor_strt = sensor_strt
         myThread.port = "/dev/" + self.sensor_name
         myThread.baud = self.sensor_baud
+        myThread.actv = self.sensor_actv
         self.ser = serial.Serial(myThread.port, myThread.baud)
-        self.ser.write(str("CBP3SerialSensor")) # for testing
+        if self.sensor_strt == 'yes' :
+            self.ser.write(str("CBP3SerialSensors")) # for restart recognizing
         self.value = 0
         self.runnig = True
 
@@ -81,19 +91,25 @@ class myThread (threading.Thread):
 
         while self.runnig:
             try:
-                if not self.ser.isOpen():
+                if not self.ser.isOpen(): # retry if some one disconnects
                     self.ser = serial.Serial(myThread.port, myThread.baud)
-                # below is working well
+                temp = 0
+                if self.sensor_actv == 'yes':
+                    res = os.popen('vcgencmd measure_temp').readline()
+                    temp = float(res.replace("temp=","").replace("'C\n",""))
+                self.value = temp # be quicker ..
                 seperator = " " # TODO make seperator selectable
                 for idx, val in cbpi.cache["sensors"].iteritems():
-                    sensorTemp = cbpi.cache.get("sensors")[idx].instance.last_value;
-                    self.ser.write(str(sensorTemp))
-                    self.ser.write(seperator)
-                app.logger.info("SerialSensor sent data")
-                # for an own value read the system temperature
-                res = os.popen('vcgencmd measure_temp').readline()
-                temp = float(res.replace("temp=","").replace("'C\n",""))
-                self.value = temp
+                    sensorInst = cbpi.cache.get("sensors")[idx].instance
+                    sensorTemp = sensorInst.last_value; # sensor's value
+                    if self.sensor_actv == 'yes':
+                        self.ser.write(str(sensorTemp))
+                        self.ser.write(seperator)
+                    if self.sensor_actv == 'no':
+                        if self.sensor_id != idx : # exclude oneself
+                            self.ser.write(str(sensorTemp))
+                            self.ser.write(seperator)
+                app.logger.info(self.sensor_name + " sent data")
             except:
                 pass
 
@@ -103,10 +119,12 @@ class myThread (threading.Thread):
 class SerialSensors(SensorPassive):
     sensor_name = Property.Select("arduino's /dev/ttyACM?", getTTYACM(), description="Possible devices where an arduino is connected; if empty, no arduino connected.")
     sensor_baud = Property.Select("arduino's baud rate", getBaudRate(), description="Select the baud rate defined in your arduino program.")
+    sensor_actv = Property.Select("System Temperature", getYesNo(), description="Select to add CBP's system temperature or not.")
+    sensor_strt = Property.Select("Startup Message", getYesNo(), description="Select to send the start up message: \"CBP3SerialSensors\"; to let arduino recognizing a starting point for data processing.")
 
     def init(self):
 
-        self.t = myThread(self.sensor_name, self.sensor_baud)
+        self.t = myThread(self.id, self.sensor_name, self.sensor_baud, self.sensor_actv, self.sensor_strt)
 
         def shutdown():
             shutdown.cb.shutdown()
