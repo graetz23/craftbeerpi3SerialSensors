@@ -29,6 +29,7 @@ Everything was coded using:
   - [**python**](https://www.python.org/); v2.7,
   - [**Gnome**](https://www.gnome.org/) windows manager,
   - and [**debian**](https://www.debian.org/) GNU/Linux,
+
 Tried out on / by:
   - [**arduino leonardo**](https://www.arduino.cc/),
   - [LiquidCrystal - Serial Input](https://www.arduino.cc/en/Tutorial/LiquidCrystalSerialDisplay),
